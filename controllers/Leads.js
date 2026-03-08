@@ -6,20 +6,50 @@ export const getLeads = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Timeframes
+        // 1. Build Dynamic Query
+        const query = {};
+
+        // Filter by Salesman if provided (Frontend passes user.id)
+        if (req.query.Salesman) {
+            query.Salesman = req.query.Salesman;
+        }
+
+        // Search Logic (Company Name)
+        if (req.query.search) {
+            query.companyName = { $regex: req.query.search, $options: 'i' };
+        }
+
+        // 2. Timeframes for Stats
         const now = new Date();
         const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
         const fortyEightHoursAgo = new Date(now - 48 * 60 * 60 * 1000);
 
-        const [leads, totalLeads, approved, rejected, pending, statsLast24h, statsPrev24h] = await Promise.all([
-            Leads.find().populate('Salesman', 'name email').sort({ createdAt: -1 }).skip(skip).limit(limit),
-            Leads.countDocuments(),
-            Leads.countDocuments({ currentStatus: 'approved' }),
-            Leads.countDocuments({ currentStatus: 'rejected' }),
-            Leads.countDocuments({ currentStatus: 'pending' }),
-            // Counts for the last 24h
+        // 3. Execute Aggregations and Queries in Parallel
+        const [
+            leads, 
+            totalLeads, 
+            approved, 
+            rejected, 
+            pending, 
+            statsLast24h, 
+            statsPrev24h
+        ] = await Promise.all([
+            // Main Data Fetch
+            Leads.find(query)
+                .populate('Salesman', 'name email')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+
+            // Global/Filtered Counts
+            Leads.countDocuments(query),
+            Leads.countDocuments({ ...query, currentStatus: 'approved' }),
+            Leads.countDocuments({ ...query, currentStatus: 'rejected' }),
+            Leads.countDocuments({ ...query, currentStatus: 'pending' }),
+
+            // Stats for the last 24h
             Leads.aggregate([
-                { $match: { createdAt: { $gte: twentyFourHoursAgo } } },
+                { $match: { ...query, createdAt: { $gte: twentyFourHoursAgo } } },
                 {
                     $group: {
                         _id: null,
@@ -30,9 +60,10 @@ export const getLeads = async (req, res) => {
                     }
                 }
             ]),
-            // Counts for the 24h before that (for percentage comparison)
+
+            // Stats for the 24h before that
             Leads.aggregate([
-                { $match: { createdAt: { $gte: fortyEightHoursAgo, $lt: twentyFourHoursAgo } } },
+                { $match: { ...query, createdAt: { $gte: fortyEightHoursAgo, $lt: twentyFourHoursAgo } } },
                 {
                     $group: {
                         _id: null,
@@ -45,7 +76,7 @@ export const getLeads = async (req, res) => {
             ])
         ]);
 
-        // Helper function to calculate percentage change
+        // 4. Percentage Calculation Helper
         const calculatePercent = (current, previous) => {
             if (previous === 0) return current > 0 ? 100 : 0;
             return parseFloat(((current - previous) / previous * 100).toFixed(2));
@@ -57,17 +88,37 @@ export const getLeads = async (req, res) => {
         return res.status(200).json({
             success: true,
             stats: {
-                total: { value: totalLeads, percentValue: calculatePercent(current24.total, prev24.total) },
-                approved: { value: approved, percentValue: calculatePercent(current24.approved, prev24.approved) },
-                rejected: { value: rejected, percentValue: calculatePercent(current24.rejected, prev24.rejected) },
-                pending: { value: pending, percentValue: calculatePercent(current24.pending, prev24.pending) },
+                total: { 
+                    value: totalLeads, 
+                    percentValue: calculatePercent(current24.total, prev24.total) 
+                },
+                approved: { 
+                    value: approved, 
+                    percentValue: calculatePercent(current24.approved, prev24.approved) 
+                },
+                rejected: { 
+                    value: rejected, 
+                    percentValue: calculatePercent(current24.rejected, prev24.rejected) 
+                },
+                pending: { 
+                    value: pending, 
+                    percentValue: calculatePercent(current24.pending, prev24.pending) 
+                },
                 approvedLast24h: current24.approved
             },
-            pagination: { totalLeads, totalPages: Math.ceil(totalLeads / limit), currentPage: page },
+            pagination: { 
+                totalLeads, 
+                totalPages: Math.ceil(totalLeads / limit), 
+                currentPage: page 
+            },
             data: leads
         });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ 
+            success: false, 
+            message: "Internal Server Error", 
+            error: error.message 
+        });
     }
 };
 
