@@ -15,7 +15,7 @@ export const protect = async (req, res, next) => {
             return res.status(404).json({ message: "User no longer exists" });
         }
 
-        if (user.role === "salesman" && user.status !== "Approved") {
+        if (user.role === "salesman" && user.status !== "approved") {
             return res.status(403).json({ 
                 message: `Access denied. Your account status is: ${user.status}` 
             });

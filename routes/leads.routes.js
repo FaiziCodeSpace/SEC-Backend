@@ -6,16 +6,17 @@ import {
     editLead,
     deleteLead
 } from "../controllers/Leads.js";
+import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
 // General routes
-router.get('/', getLeads);
-router.post('/createLead', createLead);
+router.get('/', protect, getLeads);
+router.post('/createLead', protect, createLead);
  
 // ID specific routes
-router.get('/:id', getLeadById);
-router.patch('/editLead/:id', editLead); 
-router.delete('/deleteLead/:id', deleteLead); 
+router.get('/:id', protect, getLeadById);
+router.patch('/editLead/:id', protect, editLead); 
+router.delete('/deleteLead/:id', protect, deleteLead); 
 
 export default router;

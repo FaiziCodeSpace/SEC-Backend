@@ -77,7 +77,7 @@ export const login = async (req, res) => {
 
         res.status(200).json({
             accessToken,
-            user: { id: user._id, name: user.name, role: user.role }
+            user: { id: user._id, name: user.name, role: user.role, status: user.status }
         });
     } catch (error) {
         handleControllerError(error, res);
@@ -101,7 +101,12 @@ export const refreshAccessToken = async (req, res) => {
 
         res.status(200).json({
             accessToken: tokens.accessToken,
-            user: { id: user._id, name: user.name, role: user.role }
+            user: {
+                id: user._id,
+                name: user.name,
+                role: user.role,
+                status: user.status
+            }
         });
     } catch (error) {
         handleControllerError(error, res);

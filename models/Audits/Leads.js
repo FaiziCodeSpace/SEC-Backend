@@ -9,8 +9,9 @@ const LeadsSchema = new mongoose.Schema({
   Salesman: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    default: null,
-    index: true
+    // Remove the default: "Admin" string entirely
+    index: true,
+    required: [true, "A lead must be assigned to a salesman"]
   },
   companyName: {
     type: String,
